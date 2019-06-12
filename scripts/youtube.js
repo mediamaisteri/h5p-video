@@ -13,6 +13,7 @@ H5P.VideoYouTube = (function ($) {
     var self = this;
 
     var player;
+    var playbackRate = 1;
     var id = 'h5p-youtube-' + numInstances;
     numInstances++;
 
@@ -40,23 +41,30 @@ H5P.VideoYouTube = (function ($) {
         loadAPI(create);
         return;
       }
+      if (YT.Player === undefined) {
+        return;
+      }
 
       var width = $wrapper.width();
       if (width < 200) {
         width = 200;
       }
 
+      var loadCaptionsModule = true;
+
+      var videoId = getId(sources[0].path);
+
       player = new YT.Player(id, {
         width: width,
         height: width * (9/16),
-        videoId: getId(sources[0].path),
+        videoId: videoId,
         playerVars: {
           origin: ORIGIN,
           autoplay: options.autoplay ? 1 : 0,
           controls: options.controls ? 1 : 0,
           disablekb: options.controls ? 0 : 1,
           fs: 0,
-          loop: options.loop ? 1 : 0,
+          playlist: options.loop ? videoId : undefined,
           rel: 0,
           showinfo: 0,
           iv_load_policy: 3,
@@ -69,8 +77,43 @@ H5P.VideoYouTube = (function ($) {
             self.trigger('ready');
             self.trigger('loaded');
           },
+          onApiChange: function () {
+            if (loadCaptionsModule) {
+              loadCaptionsModule = false;
+
+              // Always load captions
+              player.loadModule('captions');
+            }
+
+            var trackList;
+            try {
+              // Grab tracklist from player
+              trackList = player.getOption('captions', 'tracklist');
+            }
+            catch (err) {}
+            if (trackList && trackList.length) {
+
+              // Format track list into valid track options
+              var trackOptions = [];
+              for (var i = 0; i < trackList.length; i++) {
+                trackOptions.push(new H5P.Video.LabelValue(trackList[i].displayName, trackList[i].languageCode));
+              }
+
+              // Captions are ready for loading
+              self.trigger('captions', trackOptions);
+            }
+          },
           onStateChange: function (state) {
             if (state.data > -1 && state.data < 4) {
+
+              // Fix for keeping playback rate in IE11
+              if (H5P.Video.IE11_PLAYBACK_RATE_FIX && state.data === H5P.Video.PLAYING && playbackRate !== 1) {
+                // YT doesn't know that IE11 changed the rate so it must be reset before it's set to the correct value
+                player.setPlaybackRate(1);
+                player.setPlaybackRate(playbackRate);
+              }
+              // End IE11 fix
+
               self.trigger('stateChange', state.data);
             }
           },
@@ -376,12 +419,32 @@ H5P.VideoYouTube = (function ($) {
      * @public
      * @params {Number} suggested rate that may be rounded to supported values
      */
-    self.setPlaybackRate = function (playbackRate) {
+    self.setPlaybackRate = function (newPlaybackRate) {
       if (!player || !player.setPlaybackRate) {
         return;
       }
 
-      player.setPlaybackRate(playbackRate);
+      playbackRate = newPlaybackRate;
+      player.setPlaybackRate(newPlaybackRate);
+    };
+
+    /**
+     * Set current captions track.
+     *
+     * @param {H5P.Video.LabelValue} Captions track to show during playback
+     */
+    self.setCaptionsTrack = function (track) {
+      player.setOption('captions', 'track', track ? {languageCode: track.value} : {});
+    };
+
+    /**
+     * Figure out which captions track is currently used.
+     *
+     * @return {H5P.Video.LabelValue} Captions track
+     */
+    self.getCaptionsTrack = function () {
+      var track = player.getOption('captions', 'track');
+      return (track.languageCode ? new H5P.Video.LabelValue(track.displayName, track.languageCode) : null);
     };
 
     // Respond to resize events by setting the YT player size.
@@ -434,10 +497,12 @@ H5P.VideoYouTube = (function ($) {
    * @param {String} url
    * @returns {String} YouTube video identifier
    */
+
   var getId = function (url) {
-    var matches = url.match(/^https?:\/\/(youtube.com|www.youtube.com|m.youtube.com|youtu.be|y2u.be)\/(.+=)?(\S+)$/i);
-    if (matches && matches[3]) {
-      return matches[3];
+    // Has some false positives, but should cover all regular URLs that people can find
+    var matches = url.match(/(?:(?:youtube.com\/(?:attribution_link\?(?:\S+))?(?:v\/|embed\/|watch\/|(?:user\/(?:\S+)\/)?watch(?:\S+)v\=))|(?:youtu.be\/|y2u.be\/))([A-Za-z0-9_-]{11})/i);
+    if (matches && matches[1]) {
+      return matches[1];
     }
   };
 
@@ -465,7 +530,8 @@ H5P.VideoYouTube = (function ($) {
 
   /** @constant {Object} */
   var LABELS = {
-    highres: '2160p',
+    highres: '2160p', // Old API support
+    hd2160: '2160p', // (New API)
     hd1440: '1440p',
     hd1080: '1080p',
     hd720: '720p',
@@ -480,7 +546,9 @@ H5P.VideoYouTube = (function ($) {
   var numInstances = 0;
 
   // Extract the current origin (used for security)
-  var ORIGIN = window.location.href.match(/http[s]?:\/\/[^\/]+/)[0];
+  var ORIGIN = window.location.href.match(/http[s]?:\/\/[^\/]+/);
+  ORIGIN = !ORIGIN || ORIGIN[0] === undefined ? undefined : ORIGIN[0];
+  // ORIGIN = undefined is needed to support fetching file from device local storage
 
   return YouTube;
 })(H5P.jQuery);

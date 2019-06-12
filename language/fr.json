@@ -2,13 +2,13 @@
   "semantics": [
     {
       "label": "Sources vidéo",
-      "description": "Selectionnez les fichiers vidéo que vous souhaitez utiliser dans votre vidéo interactive. Pour assurer une compatibilité maximum avec les navigateurs, merci d'utiliser des vidéos au format mp4 ou webm."
+      "description": "Selectionnez les fichiers vidéo que vous souhaitez utiliser. Pour assurer une compatibilité maximum avec les navigateurs, merci d'utiliser des vidéos au format mp4 ou webm."
     },
     {
-      "label": "Visuals",
+      "label": "Visuels",
       "fields": [
         {
-          "label": "Affiche"
+          "label": "Image à la une"
         },
         {
           "label": "Le lecteur vidéo utilise toute la place disponible",
@@ -16,13 +16,11 @@
         },
         {
           "label": "Montrer les boutons de contrôle de la vidéo",
-          "description": "Montre les boutons de contrôle de la vidéo: lecture, pause..."
+          "description": "Montre les boutons de contrôle de la vidéo : lecture, pause..."
         }
       ]
     },
     {
-      "name": "playback",
-      "type": "group",
       "label": "Playback",
       "fields": [
         {
@@ -40,78 +38,95 @@
       "fields": [
         {
           "label": "Nom",
-          "description": "Aide à idntifier le type de contenu."
+          "default": "Video",
+          "description": "Aide à identifier le type de contenu."
         },
         {
-          "label": "Chargement"
+          "label": "Chargement",
+          "default": "Chargement du lecteur vidéo..."
         },
         {
-          "label": "Aucun lecteur vidéo trouvé"
+          "label": "Aucun lecteur vidéo trouvé",
+          "default": "Aucun lecteur vidéo trouvé pour supporter le format video utilisé."
         },
         {
-          "label": "Aucune source vidéo"
+          "label": "Aucune source vidéo",
+          "default": "La vidéo n'a pas de source associée."
         },
         {
-          "label": "Abandonné"
+          "label": "Abandonné",
+          "default": "La lecture du média a été abandonnée."
         },
         {
-          "label": "Erreur de réseau"
+          "label": "Erreur de réseau",
+          "default": "Problème de connexion au réseau."
         },
         {
-          "label": "Impossible de décoder la vidéo"
+          "label": "Impossible de décoder la vidéo",
+          "default": "Impossible de décoder la vidéo."
         },
         {
-          "label": "Format vidéo non supporté"
+          "label": "Format vidéo non supporté",
+          "default": "Format vidéo non supporté."
         },
         {
-          "label": "Vidéo cryptée"
+          "label": "Vidéo cryptée",
+          "default": "Vidéo cryptée."
         },
         {
-          "label": "Erreur inconnue"
+          "label": "Erreur inconnue",
+          "default": "Erreur inconnue."
         },
         {
-          "label": "ID YouTube invalide"
+          "label": "ID YouTube invalide",
+          "default": "Identifiant YouTube invalide."
         },
         {
-          "label": "ID YouTube inconnue"
+          "label": "ID YouTube inconnue",
+          "default": "Impossible de trouver la vidéo avec cet identifiant YouTube."
         },
         {
-          "label": "Vidéo YouTube à accès restreint"
+          "label": "Vidéo YouTube à accès restreint",
+          "default": "Le propriétaire de cette vidéo n'autorise pas son inclusion."
         }
       ]
     },
     {
-      "label": "Accessibility",
+      "label": "Accessibilité",
       "fields": [
         {
-          "label": "Add video track",
-          "entity": "Track",
+          "label": "Ajouter une piste vidéo",
+          "entity": "Piste",
           "field": {
-            "label": "Track",
+            "label": "Piste",
             "fields": [
               {
-                "label": "Track label"
+                "label": "Intitulé de la piste"
               },
               {
-                "label": "Type kind, refer to <a href=https://html.spec.whatwg.org/multipage/embedded-content.html#the-track-element>HTML living standard</a>",
-                "default": "descriptions",
+                "label": "Type de piste, voir <a href=https://html.spec.whatwg.org/multipage/embedded-content.html#the-track-element>standard HTML actuel</a>",
                 "options": [
                   {
-                    "label": "Subtitles"
+                    "label": "Sous-titres"
                   },
                   {
-                    "label": "Captions"
+                    "label": "Audio description"
                   },
                   {
                     "label": "Descriptions"
                   },
                   {
-                    "label": "Chapters"
+                    "label": "Chapitres"
                   }
                 ]
               },
               {
-                "label": "Track file (WebVTT)"
+                "label": "Fichier de la piste (format WebVTT)",
+                "default": "en",
+                "description": "Doit être un code langage conforme à la norme BCP 47. Si le type de piste est défini à \"Sous-titres\", alors la langue doit être définie."
+              },
+              {
+                "label": "Fichier de la piste (format WebVTT)"
               }
             ]
           }

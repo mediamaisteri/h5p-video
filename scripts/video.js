@@ -18,6 +18,9 @@ H5P.Video = (function ($, ContentCopyrights, MediaCopyright, handlers) {
     // Ref youtube.js - ipad & youtube - issue
     self.pressToPlay = false;
 
+    // Reference to the handler
+    var handlerName = '';
+
     // Initialize event inheritance
     H5P.EventDispatcher.call(self);
 
@@ -27,7 +30,7 @@ H5P.Video = (function ($, ContentCopyrights, MediaCopyright, handlers) {
         name: 'Video',
         loading: 'Video player loading...',
         noPlayers: 'Found no video players that supports the given video format.',
-        noSources: 'Video is missing sources.',
+        noSources: 'Video source is missing.',
         aborted: 'Media playback has been aborted.',
         networkFailure: 'Network failure.',
         cannotDecode: 'Unable to decode media.',
@@ -94,21 +97,13 @@ H5P.Video = (function ($, ContentCopyrights, MediaCopyright, handlers) {
     };
 
     /**
-     * Gather copyright information for the current video.
+     * Get name of the video handler
      *
      * @public
-     * @returns {ContentCopyrights}
+     * @returns {string}
      */
-    self.getCopyrights = function () {
-      if (!sources[0] || !sources[0].copyright) {
-        return;
-      }
-
-      // Use copyright information from H5P media field
-      var info = new ContentCopyrights();
-      info.addMedia(new MediaCopyright(sources[0].copyright));
-
-      return info;
+    self.getHandlerName = function() {
+      return handlerName;
     };
 
     // Resize the video when we know its aspect ratio
@@ -118,6 +113,7 @@ H5P.Video = (function ($, ContentCopyrights, MediaCopyright, handlers) {
 
     // Find player for video sources
     if (sources.length) {
+      var html5Handler;
       for (var i = 0; i < handlers.length; i++) {
         var handler = handlers[i];
         if (handler.canPlay !== undefined && handler.canPlay(sources)) {
@@ -128,10 +124,31 @@ H5P.Video = (function ($, ContentCopyrights, MediaCopyright, handlers) {
             fit: parameters.visuals.fit,
             poster: parameters.visuals.poster === undefined ? undefined : H5P.getPath(parameters.visuals.poster.path, id),
             startAt: parameters.startAt || 0,
-            tracks: tracks
+            tracks: tracks,
+            disableRemotePlayback: (parameters.visuals.disableRemotePlayback || false)
           }, parameters.l10n);
+          handlerName = handler.name;
           return;
         }
+
+        if (handler === H5P.VideoHtml5) {
+          html5Handler = handler;
+          handlerName = handler.name;
+        }
+      }
+
+      // Fallback to trying HTML5 player
+      if (html5Handler) {
+        html5Handler.call(self, sources, {
+          controls: parameters.visuals.controls,
+          autoplay: parameters.playback.autoplay,
+          loop: parameters.playback.loop,
+          fit: parameters.visuals.fit,
+          poster: parameters.visuals.poster === undefined ? undefined : H5P.getPath(parameters.visuals.poster.path, id),
+          startAt: parameters.startAt || 0,
+          tracks: tracks,
+          disableRemotePlayback: (parameters.visuals.disableRemotePlayback || false)
+        }, parameters.l10n);
       }
     }
   }
@@ -157,6 +174,21 @@ H5P.Video = (function ($, ContentCopyrights, MediaCopyright, handlers) {
 
   // Used to convert between html and text, since URLs have html entities.
   var $cleaner = H5P.jQuery('<div/>');
+
+  /**
+   * Help keep track of key value pairs used by the UI.
+   *
+   * @class
+   * @param {string} label
+   * @param {string} value
+   */
+  Video.LabelValue = function (label, value) {
+    this.label = label;
+    this.value = value;
+  };
+
+  /** @constant {Boolean} */
+  Video.IE11_PLAYBACK_RATE_FIX = (navigator.userAgent.match(/Trident.*rv[ :]*11\./) ? true : false);
 
   return Video;
 })(H5P.jQuery, H5P.ContentCopyrights, H5P.MediaCopyright, H5P.videoHandlers || []);

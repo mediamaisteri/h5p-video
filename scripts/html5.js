@@ -47,6 +47,13 @@ H5P.VideoHtml5 = (function ($) {
      */
     var isLoaded = false;
 
+    /**
+     *
+     * @private
+     */
+    var playbackRate = 1;
+    var skipRateChange = false;
+
     // Create player
     var video = document.createElement('video');
 
@@ -63,6 +70,12 @@ H5P.VideoHtml5 = (function ($) {
         }
       }
     }
+
+    if (H5P.getCrossOrigin !== undefined) {
+      var crossOrigin = H5P.getCrossOrigin(qualities[currentQuality].source.path);
+      video.setAttribute('crossorigin', crossOrigin !== null ? crossOrigin : 'anonymous');
+    }
+
     video.src = qualities[currentQuality].source.path;
 
     // Setting webkit-playsinline, which makes iOS 10 beeing able to play video
@@ -72,16 +85,12 @@ H5P.VideoHtml5 = (function ($) {
     video.setAttribute('preload', 'metadata');
 
     // Set options
+    video.disableRemotePlayback = (options.disableRemotePlayback ? true : false);
     video.controls = (options.controls ? true : false);
     video.autoplay = (options.autoplay ? true : false);
     video.loop = (options.loop ? true : false);
     video.className = 'h5p-video';
     video.style.display = 'block';
-
-    // add ratechangelistener
-    video.addEventListener('ratechange', function () {
-      self.trigger('playbackRateChange', self.getPlaybackRate());
-    });
 
     if (options.fit) {
       // Style is used since attributes with relative sizes aren't supported by IE9.
@@ -154,6 +163,7 @@ H5P.VideoHtml5 = (function ($) {
               video.currentTime = options.startAt;
               delete options.startAt;
             }
+
             break;
 
           case 'loaded':
@@ -182,6 +192,24 @@ H5P.VideoHtml5 = (function ($) {
           case 'error':
             // Handle error and get message.
             arg = error(arguments[0], arguments[1]);
+            break;
+
+          case 'playbackRateChange':
+
+            // Fix for keeping playback rate in IE11
+            if (skipRateChange) {
+              skipRateChange = false;
+              return; // Avoid firing event when changing back
+            }
+            if (H5P.Video.IE11_PLAYBACK_RATE_FIX && playbackRate != video.playbackRate) { // Intentional
+              // Prevent change in playback rate not triggered by the user
+              video.playbackRate = playbackRate;
+              skipRateChange = true;
+              return;
+            }
+            // End IE11 fix
+
+            arg = self.getPlaybackRate();
             break;
         }
         self.trigger(h5p, arg);
@@ -528,8 +556,35 @@ H5P.VideoHtml5 = (function ($) {
      * @public
      * @params {Number} suggested rate that may be rounded to supported values
      */
-    self.setPlaybackRate = function (playbackRate) {
-      video.playbackRate = playbackRate;
+    self.setPlaybackRate = function (newPlaybackRate) {
+      playbackRate = newPlaybackRate;
+      video.playbackRate = newPlaybackRate;
+    };
+
+    /**
+     * Set current captions track.
+     *
+     * @param {H5P.Video.LabelValue} Captions track to show during playback
+     */
+    self.setCaptionsTrack = function (track) {
+      for (var i = 0; i < video.textTracks.length; i++) {
+        video.textTracks[i].mode = (track && track.value === i ? 'showing' : 'disabled');
+      }
+    };
+
+    /**
+     * Figure out which captions track is currently used.
+     *
+     * @return {H5P.Video.LabelValue} Captions track
+     */
+    self.getCaptionsTrack = function () {
+      for (var i = 0; i < video.textTracks.length; i++) {
+        if (video.textTracks[i].mode === 'showing') {
+          return new H5P.Video.LabelValue(video.textTracks[i].label, i);
+        }
+      }
+
+      return null;
     };
 
     // Register event listeners
@@ -539,6 +594,7 @@ H5P.VideoHtml5 = (function ($) {
     mapEvent('waiting', 'stateChange', H5P.Video.BUFFERING);
     mapEvent('loadedmetadata', 'loaded');
     mapEvent('error', 'error');
+    mapEvent('ratechange', 'playbackRateChange');
 
     if (!video.controls) {
       // Disable context menu(right click) to prevent controls.
@@ -559,10 +615,23 @@ H5P.VideoHtml5 = (function ($) {
       }
     });
 
+    // Load captions after the video is loaded
+    self.on('loaded', function () {
+      nextTick(function () {
+        var textTracks = [];
+        for (var i = 0; i < video.textTracks.length; i++) {
+          textTracks.push(new H5P.Video.LabelValue(video.textTracks[i].label, i));
+        }
+        if (textTracks.length) {
+          self.trigger('captions', textTracks);
+        }
+      });
+    });
+
     // Video controls are ready
-    setTimeout(function () {
+    nextTick(function () {
       self.trigger('ready');
-    }, 0);
+    });
   }
 
   /**
@@ -638,24 +707,30 @@ H5P.VideoHtml5 = (function ($) {
       var type = source.type = getType(source);
 
       // Check if we support this type
-      if (!type || video.canPlayType(type) === '') {
+      var isPlayable = type && (type === 'video/unknown' || video.canPlayType(type) !== '');
+      if (!isPlayable) {
         continue; // We cannot play this source
       }
 
       if (source.quality === undefined) {
-        /* No quality metadata. Create a dummy tag to seperate multiple
-        sources of the same type, e.g. if two mp4 files have been uploaded. */
+        /**
+         * No quality metadata. Create a quality tag to separate multiple sources of the same type,
+         * e.g. if two mp4 files with different quality has been uploaded
+         */
 
         if (lastQuality === undefined || qualities[lastQuality].source.type === type) {
           // Create a new quality tag
           source.quality = {
             name: 'q' + qualityIndex,
-            label: 'Quality ' + qualityIndex // TODO: l10n
+            label: (source.metadata && source.metadata.qualityName) ? source.metadata.qualityName : 'Quality ' + qualityIndex // TODO: l10n
           };
           qualityIndex++;
         }
         else {
-          // Tag as the same quality as the last source
+          /**
+           * Assumes quality already exists in a different format.
+           * Uses existing label for this quality.
+           */
           source.quality = qualities[lastQuality].source.quality;
         }
       }
@@ -706,7 +781,7 @@ H5P.VideoHtml5 = (function ($) {
   };
 
   /**
-   * Set preferred video quality.
+   * Get preferred video quality.
    *
    * @private
    * @static
@@ -723,6 +798,14 @@ H5P.VideoHtml5 = (function ($) {
     }
 
     return quality;
+  };
+
+  /**
+   * Helps schedule a task for the next tick.
+   * @param {function} task
+   */
+  var nextTick = function (task) {
+    setTimeout(task, 0);
   };
 
   /** @constant {Boolean} */
